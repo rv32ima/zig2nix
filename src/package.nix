@@ -6,6 +6,7 @@
   makeWrapper,
   removeReferencesTo,
   pkg-config,
+  symlinkJoin,
   target,
 }:
 
@@ -102,6 +103,10 @@ let
       null;
 
   needs-dynamic-linker-path = length zigWrapperLibs > 0 && dynamic-linker != null;
+  searchPrefix = symlinkJoin {
+    name = "zig-search-prefix";
+    paths = zigWrapperLibs;
+  };
 
   default-flags =
     if versionAtLeast zig.version "0.11" then
@@ -126,7 +131,7 @@ stdenvNoCC.mkDerivation (
       ++ optionals (needs-dynamic-linker-path) [ "-Ddynamic-linker=${dynamic-linker}" ]
       ++ optionals (length zigWrapperLibs > 0) [
         "--search-prefix"
-        (makeLibraryPath zigWrapperLibs)
+        searchPrefix
       ];
 
     nativeBuildInputs = [
