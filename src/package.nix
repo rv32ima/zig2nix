@@ -8,6 +8,7 @@
   pkg-config,
   runCommandCC,
   patchelf,
+  symlinkJoin,
   target,
 }:
 
@@ -82,6 +83,11 @@ let
     name = "${attrs.pname or attrs.name}-dependencies";
   };
 
+  searchPrefix = symlinkJoin {
+    name = "zig-search-prefix";
+    paths = zigWrapperLibs;
+  }
+
   # Do the same thing autopatchelf does, that is assume stdenv's dynamic-linker is what we want
   # We do not use autopatchelf because we already use makeWrapper to setup proper runtime environment otherwise
   dl-path = runCommandCC "dl-path" { } "ln -s $NIX_CC/nix-support/dynamic-linker $out";
@@ -100,7 +106,7 @@ stdenvNoCC.mkDerivation (
       ++ [ "-Dtarget=${resolved-target}" ]
       ++ optionals (length zigWrapperLibs > 0) [
         "--search-prefix"
-        (makeLibraryPath zigWrapperLibs)
+        searchPrefix
       ];
 
     nativeBuildInputs = [
