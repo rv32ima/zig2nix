@@ -1,35 +1,35 @@
 {
-  lib
-  , zig
-  , fromZON
-  , deriveLockFile
-  , makeWrapper
-  , removeReferencesTo
-  , pkg-config
-  , target
+  lib,
+  zig,
+  fromZON,
+  deriveLockFile,
+  makeWrapper,
+  removeReferencesTo,
+  pkg-config,
+  target,
 }:
 
 {
-  src
-  , glibc
-  , musl
-  , stdenvNoCC
+  src,
+  glibc,
+  musl,
+  stdenvNoCC,
   # Specify target for zig compiler, defaults to stdenv.targetPlatform.
-  , zigTarget ? null
+  zigTarget ? null,
   # Prefer musl libc without specifying the target.
-  , zigPreferMusl ? false
+  zigPreferMusl ? false,
   # Binaries available to the binary during runtime (PATH)
-  , zigWrapperBins ? []
+  zigWrapperBins ? [ ],
   # Libraries available to the binary during runtime (LD_LIBRARY_PATH)
-  , zigWrapperLibs ? []
+  zigWrapperLibs ? [ ],
   # Additional arguments to makeWrapper.
-  , zigWrapperArgs ? []
+  zigWrapperArgs ? [ ],
   # Path to build.zig.zon file, defaults to build.zig.zon.
-  , zigBuildZon ? "${src}/build.zig.zon"
+  zigBuildZon ? "${src}/build.zig.zon",
   # Path to build.zig.zon2json-lock file, defaults to build.zig.zon2json-lock.
-  , zigBuildZonLock ? "${zigBuildZon}2json-lock"
-  , ...
-} @userAttrs:
+  zigBuildZonLock ? "${zigBuildZon}2json-lock",
+  ...
+}@userAttrs:
 
 with builtins;
 with lib;
@@ -39,23 +39,43 @@ let
 
   config =
     if zigPreferMusl then
-      replaceStrings ["-gnu"] ["-musl"] stdenvNoCC.targetPlatform.config
-    else stdenvNoCC.targetPlatform.config;
+      replaceStrings [ "-gnu" ] [ "-musl" ] stdenvNoCC.targetPlatform.config
+    else
+      stdenvNoCC.targetPlatform.config;
 
   default-target = (target config).zig;
   resolved-target = if zigTarget != null then zigTarget else default-target;
 
-  wrapper-args = []
-    ++ optionals (length zigWrapperBins > 0) [ "--prefix" "PATH" ":" (makeBinPath zigWrapperBins) ]
-    ++ optionals (length zigWrapperLibs > 0 && stdenvNoCC.hostPlatform.isLinux) [ "--prefix" "LD_LIBRARY_PATH" ":" (makeLibraryPath zigWrapperLibs) ]
-    ++ optionals (length zigWrapperLibs > 0 && stdenvNoCC.hostPlatform.isDarwin) [ "--prefix" "DYLD_LIBRARY_PATH" ":" (makeLibraryPath zigWrapperLibs) ]
+  wrapper-args =
+    [ ]
+    ++ optionals (length zigWrapperBins > 0) [
+      "--prefix"
+      "PATH"
+      ":"
+      (makeBinPath zigWrapperBins)
+    ]
+    ++ optionals (length zigWrapperLibs > 0 && stdenvNoCC.hostPlatform.isLinux) [
+      "--prefix"
+      "LD_LIBRARY_PATH"
+      ":"
+      (makeLibraryPath zigWrapperLibs)
+    ]
+    ++ optionals (length zigWrapperLibs > 0 && stdenvNoCC.hostPlatform.isDarwin) [
+      "--prefix"
+      "DYLD_LIBRARY_PATH"
+      ":"
+      (makeLibraryPath zigWrapperLibs)
+    ]
     ++ zigWrapperArgs;
 
-  attrs = optionalAttrs (pathExists zigBuildZon && !userAttrs ? name && !userAttrs ? pname) {
-    pname = zon.name;
-  } // optionalAttrs (pathExists zigBuildZon && !userAttrs ? version) {
-    version = zon.version;
-  } // userAttrs;
+  attrs =
+    optionalAttrs (pathExists zigBuildZon && !userAttrs ? name && !userAttrs ? pname) {
+      pname = zon.name;
+    }
+    // optionalAttrs (pathExists zigBuildZon && !userAttrs ? version) {
+      version = zon.version;
+    }
+    // userAttrs;
 
   deps = deriveLockFile zigBuildZonLock {
     inherit zig;
@@ -64,15 +84,22 @@ let
 
   abi = (target resolved-target).abi;
   dynamic-linker =
-    if !stdenvNoCC.hostPlatform.isLinux then null
+    if !stdenvNoCC.hostPlatform.isLinux then
+      null
     # -Ddynamic-linker doesn't seem to work with zig 0.16 ... packaging for nix may be broken :/
-    else if compareVersions zig.version "0.16" == 0 then null
+    else if compareVersions zig.version "0.16" == 0 then
+      null
     # cross-compiling
-    else if resolved-target != default-target && zigTarget != null then null
-    else if ((target resolved-target).dynamicLinker or null) == null then null
-    else if abi == "gnu" then "${glibc}${(target resolved-target).dynamicLinker}"
-    else if abi == "musl" then "${musl}${(target resolved-target).dynamicLinker}"
-    else null;
+    else if resolved-target != default-target && zigTarget != null then
+      null
+    else if ((target resolved-target).dynamicLinker or null) == null then
+      null
+    else if abi == "gnu" then
+      "${glibc}${(target resolved-target).dynamicLinker}"
+    else if abi == "musl" then
+      "${musl}${(target resolved-target).dynamicLinker}"
+    else
+      null;
 
   needs-dynamic-linker-path = length zigWrapperLibs > 0 && dynamic-linker != null;
 
@@ -81,40 +108,60 @@ let
       [ "-Doptimize=ReleaseSafe" ]
     else
       [ "-Drelease-safe=true" ];
-in stdenvNoCC.mkDerivation (
-  (removeAttrs attrs
-    ([ "stdenvNoCC" ]
+in
+stdenvNoCC.mkDerivation (
+  (removeAttrs attrs (
+    [ "stdenvNoCC" ]
     ++ optionals (needs-dynamic-linker-path && abi == "gnu") [ "musl" ]
     ++ optionals (needs-dynamic-linker-path && abi == "musl") [ "glibc" ]
-    ++ optionals (!needs-dynamic-linker-path) [ "glibc" "musl" ])) // {
+    ++ optionals (!needs-dynamic-linker-path) [
+      "glibc"
+      "musl"
+    ]
+  ))
+  // {
     zigBuildFlags =
       (attrs.zigBuildFlags or default-flags)
       ++ [ "-Dtarget=${resolved-target}" ]
-      ++ optionals (needs-dynamic-linker-path) [ "-Ddynamic-linker=${dynamic-linker}" ];
+      ++ optionals (needs-dynamic-linker-path) [ "-Ddynamic-linker=${dynamic-linker}" ]
+      ++ optionals (length zigWrapperLibs > 0) [
+        "--search-prefix"
+        (makeLibraryPath zigWrapperLibs)
+      ];
 
-    nativeBuildInputs = [ zig.hook removeReferencesTo pkg-config ]
-      ++ optionals (length wrapper-args > 0) [ makeWrapper ]
-      ++ (attrs.nativeBuildInputs or []);
+    nativeBuildInputs = [
+      zig.hook
+      removeReferencesTo
+      pkg-config
+    ]
+    ++ optionals (length wrapper-args > 0) [ makeWrapper ]
+    ++ (attrs.nativeBuildInputs or [ ]);
 
     postConfigure = optionalString (pathExists zigBuildZonLock) ''
       ln -s ${deps} "$ZIG_GLOBAL_CACHE_DIR"/p
       ${attrs.postPatch or ""}
-      '';
+    '';
 
-    preFixup = optionalString (length wrapper-args > 0) ''
-      for bin in $out/bin/*; do
-        wrapProgram $bin ${concatStringsSep " " wrapper-args}
-      done
-      '' + ''
-      ${attrs.preFixup or ""}
+    preFixup =
+      optionalString (length wrapper-args > 0) ''
+        for bin in $out/bin/*; do
+          wrapProgram $bin ${concatStringsSep " " wrapper-args}
+        done
+      ''
+      + ''
+        ${attrs.preFixup or ""}
       '';
 
     postFixup = ''
       find "$out" -type f -exec remove-references-to -t ${zig} '{}' +
       ${attrs.postFixup or ""}
-      '';
+    '';
 
-    disallowedReferences = [ zig zig.hook removeReferencesTo ]
-      ++ optionals (pathExists zigBuildZonLock) [ deps ];
+    disallowedReferences = [
+      zig
+      zig.hook
+      removeReferencesTo
+    ]
+    ++ optionals (pathExists zigBuildZonLock) [ deps ];
   }
 )
