@@ -86,7 +86,7 @@ let
   searchPrefix = symlinkJoin {
     name = "zig-search-prefix";
     paths = zigWrapperLibs;
-  }
+  };
 
   # Do the same thing autopatchelf does, that is assume stdenv's dynamic-linker is what we want
   # We do not use autopatchelf because we already use makeWrapper to setup proper runtime environment otherwise
