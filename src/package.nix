@@ -95,7 +95,13 @@ in
 stdenvNoCC.mkDerivation (
   (removeAttrs attrs [ "stdenvNoCC" ])
   // {
-    zigBuildFlags = (attrs.zigBuildFlags or default-flags) ++ [ "-Dtarget=${resolved-target}" ];
+    zigBuildFlags =
+      (attrs.zigBuildFlags or default-flags)
+      ++ [ "-Dtarget=${resolved-target}" ]
+      ++ optionals (length zigWrapperLibs > 0) [
+        "--search-prefix"
+        (makeLibraryPath zigWrapperLibs)
+      ];
 
     nativeBuildInputs = [
       zig.hook
