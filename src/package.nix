@@ -12,6 +12,7 @@
 {
   src,
   stdenvNoCC,
+  symlinkJoin,
   # Specify target for zig compiler, defaults to stdenv.targetPlatform.
   zigTarget ? null,
   # Prefer musl libc without specifying the target.
