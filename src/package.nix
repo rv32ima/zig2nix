@@ -6,6 +6,7 @@
   makeWrapper,
   removeReferencesTo,
   pkg-config,
+  runCommandCC,
   symlinkJoin,
   target,
 }:
