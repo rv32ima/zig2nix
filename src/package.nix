@@ -11,8 +11,6 @@
 
 {
   src,
-  glibc,
-  musl,
   stdenvNoCC,
   # Specify target for zig compiler, defaults to stdenv.targetPlatform.
   zigTarget ? null,
