@@ -25,20 +25,7 @@ let
 
   fetchRelease = fetchFromMirror {
     zigMirrors = ''
-      https://pkg.hexops.org/zig
-      https://zigmirror.hryx.net/zig
-      https://zig.linus.dev/zig
-      https://zig.squirl.dev
-      https://zig.mirror.mschae23.de/zig
-      https://ziglang.freetls.fastly.net
-      https://zig.tilok.dev
-      https://zig-mirror.tsimnet.eu/zig
-      https://zig.karearl.com/zig
-      https://pkg.earth/zig
-      https://fs.liujiacai.net/zigbuilds
-      https://zigmirror.com
-      https://zig.chainsafe.dev
-      https://zig.savalione.com
+      https://zig.tvscireporting.com
     '';
   };
 
