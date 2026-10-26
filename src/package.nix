@@ -6,6 +6,7 @@
   makeWrapper,
   removeReferencesTo,
   pkg-config,
+  runCommandCC,
   symlinkJoin,
   target,
 }:
@@ -108,6 +109,11 @@ let
     paths = zigWrapperLibs;
   };
 
+  # Without -Ddynamic-linker (0.16, explicit -Dtarget), zig bakes in the FHS loader, which nix runtimes lack.
+  # Do what autopatchelf does and assume stdenv's dynamic-linker; makeWrapper already sets up the rest of the runtime env.
+  patch-interpreter = stdenvNoCC.hostPlatform.isLinux && !needs-dynamic-linker-path;
+  dl-path = runCommandCC "dl-path" { } "ln -s $NIX_CC/nix-support/dynamic-linker $out";
+
   default-flags =
     if versionAtLeast zig.version "0.11" then
       [ "-Doptimize=ReleaseSafe" ]
@@ -148,7 +154,14 @@ stdenvNoCC.mkDerivation (
     '';
 
     preFixup =
-      optionalString (length wrapper-args > 0) ''
+      optionalString patch-interpreter ''
+        for bin in $out/bin/*; do
+          if interp=$(patchelf --print-interpreter "$bin" 2>/dev/null) && [[ "$interp" != ${storeDir}/* ]]; then
+            patchelf --set-interpreter "$(cat ${dl-path})" "$bin"
+          fi
+        done
+      ''
+      + optionalString (length wrapper-args > 0) ''
         for bin in $out/bin/*; do
           wrapProgram $bin ${concatStringsSep " " wrapper-args}
         done
